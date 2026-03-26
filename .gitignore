@@ -1,0 +1,31 @@
+# Python environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables (CRITICAL)
+.env
+.env.*
+!.env.example
+
+# Streamlit
+.streamlit/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Optional: local data / temp
+*.sqlite3
+*.db
