@@ -1,5 +1,19 @@
 # Aprimo MCP Streamlit Demo
 
+> **LLM-powered Aprimo DAM search using LangChain, multi-model support (Anthropic & OpenAI), and n8n MCP workflows for real-time asset retrieval.**
+
+---
+
+## 🚀 Key Highlights
+
+- 🧠 **LangChain-powered agent orchestration**
+- 🔀 **Multi-model support** (Anthropic Claude + OpenAI GPT)
+- 🔌 **Model Context Protocol (MCP)** integration via n8n
+- 🎯 **Natural language search** over Aprimo DAM
+- 🖼️ **Real-time asset retrieval** with thumbnails and metadata
+- ⚙️ **Extensible architecture** for additional tools and models
+
+---
 A Streamlit-based demo that connects an LLM-powered chat interface to Aprimo DAM search through n8n Model Context Protocol (MCP) workflows.
 
 This repository is designed for local development first, with a clean path to team sharing once credentials and workflow configuration are in place.
