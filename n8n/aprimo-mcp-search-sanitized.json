@@ -1,0 +1,101 @@
+{
+    "name": "Aprimo MCP Search - Anthropic (Sanitized)",
+    "nodes": [
+      {
+        "parameters": {
+          "path": "REPLACE_WITH_MCP_PATH"
+        },
+        "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+        "typeVersion": 2,
+        "position": [
+          -480,
+          -96
+        ],
+        "id": "REPLACE_WITH_MCP_TRIGGER_NODE_ID",
+        "name": "MCP Server",
+        "webhookId": "REPLACE_WITH_MCP_PATH"
+      },
+      {
+        "parameters": {
+          "description": "Search Aprimo DAM for assets by keyword. Returns a collection of matching assets, not a single asset. The response includes count, results[], and content. Each result contains fileName, assetId, state, aiInfluenced, and imageUrl.",
+          "workflowId": {
+            "__rl": true,
+            "value": "REPLACE_WITH_CHILD_WORKFLOW_ID",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/REPLACE_WITH_CHILD_WORKFLOW_ID",
+            "cachedResultName": "Aprimo Search: Anthropic (Sanitized)"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+              "limit": "={{ $input.item.json.limit || 10 }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "query",
+                "displayName": "query",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "limit",
+                "displayName": "limit",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "number",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          -400,
+          112
+        ],
+        "id": "REPLACE_WITH_TOOL_WORKFLOW_NODE_ID",
+        "name": "search_assets"
+      }
+    ],
+    "pinData": {},
+    "connections": {
+      "search_assets": {
+        "ai_tool": [
+          [
+            {
+              "node": "MCP Server",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": true,
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate",
+      "availableInMCP": true,
+      "timeSavedMode": "fixed",
+      "timezone": "America/Chicago",
+      "callerPolicy": "workflowsFromSameOwner"
+    },
+    "versionId": "REPLACE_WITH_MAIN_WORKFLOW_VERSION_ID",
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID"
+    },
+    "id": "REPLACE_WITH_MAIN_WORKFLOW_ID",
+    "tags": []
+  }
