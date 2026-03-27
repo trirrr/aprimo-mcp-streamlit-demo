@@ -1,14 +1,17 @@
 import asyncio
 import json
 import os
+import re
 from typing import Any
 
 import streamlit as st
 from langchain_anthropic import ChatAnthropic
+
 try:
     from langchain_openai import ChatOpenAI  # type: ignore[reportMissingImports]
 except ImportError:
     ChatOpenAI = None
+
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.agents import create_agent
@@ -16,18 +19,17 @@ from langchain.agents import create_agent
 from config import build_mcp_headers, settings
 from models import Asset
 
+
 if settings.langsmith_api_key:
     os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
 if settings.langsmith_project:
     os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
-os.environ["LANGCHAIN_TRACING_V2"] = (
-    "true" if settings.langsmith_tracing_v2 else "false"
-)
+os.environ["LANGCHAIN_TRACING_V2"] = "true" if settings.langsmith_tracing_v2 else "false"
 
 
 st.set_page_config(page_title=settings.app_title, page_icon="🔌", layout="wide")
 st.title(f"🔌 {settings.app_title}")
-st.caption("Streamlit + Anthropic + LangGraph + remote n8n MCP")
+st.caption("Streamlit + LangChain + multi-model LLM support + remote n8n MCP")
 
 
 async def get_client() -> MultiServerMCPClient:
@@ -44,6 +46,7 @@ async def get_client() -> MultiServerMCPClient:
         tool_name_prefix=settings.mcp_tool_name_prefix,
     )
 
+
 async def list_tools_async() -> list:
     client = await get_client()
     tools = await client.get_tools()
@@ -55,9 +58,7 @@ async def run_agent_async(
     llm_provider: str,
     llm_model: str,
 ):
-
     client = await get_client()
-
     tools = await client.get_tools()
 
     if llm_provider == "openai":
@@ -77,11 +78,9 @@ async def run_agent_async(
 
     agent = create_agent(llm, tools)
 
-    result = await agent.ainvoke({
-        "messages": messages
-    })
-
+    result = await agent.ainvoke({"messages": messages})
     return result
+
 
 def run_async(coro):
     loop = asyncio.new_event_loop()
@@ -89,6 +88,7 @@ def run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
+
 
 def normalize_possible_json(value: Any) -> list[dict[str, Any]]:
     queue = [value]
@@ -131,24 +131,20 @@ def normalize_possible_json(value: Any) -> list[dict[str, Any]]:
         if not isinstance(current, dict):
             continue
 
-        # 1) wrapped result collections
         results = current.get("results") or current.get("assets") or current.get("items")
         if isinstance(results, list):
             for item in results:
                 if isinstance(item, dict):
                     found.append(item)
 
-        # 2) direct asset-like row
         if any(k in current for k in asset_like_keys):
             found.append(current)
 
-        # 3) common nested containers
         for key in ("data", "content", "payload", "result"):
             nested = current.get(key)
             if nested is not None:
                 queue.append(nested)
 
-    # de-dupe identical dict references/content roughly by stable JSON string
     deduped: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in found:
@@ -161,6 +157,7 @@ def normalize_possible_json(value: Any) -> list[dict[str, Any]]:
             deduped.append(item)
 
     return deduped
+
 
 def extract_assets(messages: list[BaseMessage]) -> list[Asset]:
     assets: list[Asset] = []
@@ -182,12 +179,22 @@ def extract_assets(messages: list[BaseMessage]) -> list[Asset]:
                     asset = Asset.from_result(raw)
                 except Exception:
                     continue
-                unique_key = asset.asset_id or asset.full_url or asset.thumbnail_url or asset.title or ""
+
+                unique_key = (
+                    asset.asset_id
+                    or asset.full_url
+                    or asset.thumbnail_url
+                    or asset.file_name
+                    or asset.title
+                    or ""
+                )
+
                 if unique_key and unique_key not in seen:
                     seen.add(unique_key)
                     assets.append(asset)
 
     return assets
+
 
 def extract_facets(messages: list[BaseMessage]) -> list[dict[str, Any]]:
     facets: list[dict[str, Any]] = []
@@ -236,6 +243,56 @@ def extract_facets(messages: list[BaseMessage]) -> list[dict[str, Any]]:
 
     return facets
 
+
+def clean_answer_text(answer: str) -> str:
+    if not answer:
+        return ""
+
+    cleaned = answer
+
+    # Remove markdown image embeds
+    cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", cleaned)
+
+    # Remove standalone "View Original Image" style links
+    cleaned = re.sub(
+        r'^\s*[-*]?\s*\[View Original Image\]\([^)]+\)\s*$',
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+
+    # Remove simple image-intro lines
+    cleaned = re.sub(
+        r'^\s*Here is an image related to .*?:\s*$',
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+
+    # Remove raw image URLs on their own line
+    cleaned = re.sub(
+        r'^\s*https?://\S+\.(png|jpg|jpeg|webp|gif)(\?\S*)?\s*$',
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+
+    # Collapse excessive blank lines
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+    return cleaned
+
+
+def format_ai_influenced(value: Any) -> str:
+    if value is True:
+        return "Yes"
+    if value is False:
+        return "No"
+    if value is None:
+        return "Not provided"
+    return str(value)
+
+
 def display_facets(facets: list[dict[str, Any]]):
     if not facets:
         return
@@ -253,24 +310,58 @@ def display_facets(facets: list[dict[str, Any]]):
                 count = value.get("count", 0)
                 st.write(f"- {key} ({count})")
 
+
+def render_metadata_line(label: str, value: Any):
+    if value is None:
+        return
+    value_str = str(value).strip()
+    if not value_str:
+        return
+    st.markdown(f"**{label}:** {value_str}")
+
+
 def display_assets(assets: list[Asset]):
     if not assets:
         st.info("No assets were detected in the tool results.")
         return
 
-    cols = st.columns(settings.asset_columns)
-    for index, asset in enumerate(assets):
-        with cols[index % settings.asset_columns]:
-            image_url = asset.thumbnail_url or asset.full_url
-            if image_url:
-                st.image(image_url, width=settings.thumbnail_width)
-            st.markdown(f"**{asset.title or 'Untitled asset'}**")
-            if asset.asset_id:
-                st.caption(f"Asset ID: {asset.asset_id}")
-            if asset.description:
-                st.write(asset.description)
-            if asset.full_url:
-                st.link_button("Open asset", asset.full_url, use_container_width=True)
+    st.markdown("### Search Results")
+
+    for asset in assets:
+        with st.container(border=True):
+            left, right = st.columns([1, 2], gap="large")
+
+            with left:
+                image_url = asset.thumbnail_url or asset.full_url
+                if image_url:
+                    st.image(image_url, width=settings.thumbnail_width)
+                else:
+                    st.caption("No preview available")
+
+            with right:
+                st.markdown(f"#### {asset.title or 'Untitled asset'}")
+
+                render_metadata_line("Asset ID", asset.asset_id)
+                render_metadata_line("File Name", asset.file_name)
+                render_metadata_line("State", asset.state)
+                render_metadata_line("AI Influenced", format_ai_influenced(asset.ai_influenced))
+                render_metadata_line("Description", asset.description)
+
+                if asset.full_url:
+                    st.link_button("Open asset", asset.full_url, width="content")
+
+        st.write("")
+
+
+# Session defaults
+if "llm_provider_display" not in st.session_state:
+    st.session_state.llm_provider_display = "OpenAI"
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+if "agent_messages" not in st.session_state:
+    st.session_state.agent_messages = []
 
 
 with st.sidebar:
@@ -282,8 +373,8 @@ with st.sidebar:
 
     llm_provider_display = st.selectbox(
         "LLM Provider",
-        ["Anthropic", "OpenAI"],
-        index=0 if settings.llm_provider != "openai" else 1,
+        ["OpenAI", "Anthropic"],
+        index=0 if st.session_state.llm_provider_display == "OpenAI" else 1,
         key="llm_provider_display",
     )
     llm_provider = "anthropic" if llm_provider_display == "Anthropic" else "openai"
@@ -295,10 +386,14 @@ with st.sidebar:
         model_options = list(settings.openai_model_options)
         default_model = settings.openai_model
 
+    if "llm_model" not in st.session_state or st.session_state.llm_model not in model_options:
+        st.session_state.llm_model = default_model
+
     try:
-        default_index = model_options.index(default_model)
+        default_index = model_options.index(st.session_state.llm_model)
     except ValueError:
         default_index = 0
+        st.session_state.llm_model = model_options[0]
 
     st.selectbox(
         "Model",
@@ -307,7 +402,7 @@ with st.sidebar:
         key="llm_model",
     )
 
-    if st.button("List MCP tools", use_container_width=True):
+    if st.button("List MCP tools", width="stretch"):
         if not settings.mcp_server_url:
             st.error("Set MCP_SERVER_URL in .env first.")
         else:
@@ -326,29 +421,30 @@ with st.sidebar:
             except Exception as exc:
                 st.error(f"Tool discovery failed: {exc}")
 
-    if st.button("Clear chat", use_container_width=True):
+    if st.button("Clear chat", width="stretch"):
         st.session_state.chat_history = []
         st.session_state.agent_messages = []
         st.rerun()
 
 
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
 for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if msg.get("content"):
+            st.markdown(msg["content"])
         if msg.get("assets"):
             display_assets(msg["assets"])
+        if msg.get("facets"):
+            display_facets(msg["facets"])
+
 
 prompt = st.chat_input("Ask n8n MCP to search Aprimo assets")
 
 if prompt:
-    llm_provider_display = st.session_state.get("llm_provider_display", "Anthropic")
+    llm_provider_display = st.session_state.get("llm_provider_display", "OpenAI")
     llm_provider = "anthropic" if llm_provider_display == "Anthropic" else "openai"
     llm_model = st.session_state.get(
         "llm_model",
-        settings.anthropic_model if llm_provider == "anthropic" else settings.openai_model,
+        settings.openai_model if llm_provider == "openai" else settings.anthropic_model,
     )
 
     if llm_provider == "anthropic":
@@ -368,14 +464,38 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    message_input = [
+
+    system_prompt = (
+         "You are an Aprimo DAM search assistant. "
+         "Use the available MCP search tools to retrieve multiple relevant assets, not just the single best match. "
+         "For broad people, brand, object, or concept searches, aim to return up to 10 assets when available. "
+         "Do not stop after finding the first relevant asset. "
+         "Prefer recall over over-filtering unless the user explicitly asks for only one result. "
+         "Respond with a concise, professional summary only. "
+         "Do not list per-asset metadata in the prose response. "
+         "Do not embed markdown images. "
+         "Do not include direct asset preview links like 'View Original Image'. "
+         "The UI will render thumbnails and metadata separately."
+     )
+ 
+    history_without_latest_user = st.session_state.chat_history[:-1]
+
+    search_instruction = (
+        f"Search Aprimo for: {prompt}\n\n"
+        "Return up to 10 relevant assets if available. "
+        "Do not stop at the first match unless only one valid result exists. "
+        "Prefer broader useful recall for people, objects, brands, and concepts."
+    )
+
+    message_input = [{"role": "system", "content": system_prompt}] + [
         {"role": item["role"], "content": item["content"]}
-        for item in st.session_state.chat_history
+        for item in history_without_latest_user
+    ] + [
+        {"role": "user", "content": search_instruction}
     ]
 
-
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Searching Aprimo assets..."):
             try:
                 result = run_async(run_agent_async(message_input, llm_provider, llm_model))
                 final_message = result["messages"][-1]
@@ -385,27 +505,27 @@ if prompt:
                     if isinstance(final_message.content, str)
                     else str(final_message.content)
                 )
+                answer = clean_answer_text(answer)
 
-                # Extract assets
                 assets = extract_assets(result["messages"])
-
-                # NEW: Extract facets
                 facets = extract_facets(result["messages"])
+
+                if assets:
+                    answer = f"Found {len(assets)} asset(s)." if len(assets) > 1 else "Found 1 asset."                    
 
             except Exception as exc:
                 answer = f"Agent error: {exc}"
                 assets = []
                 facets = []
 
-        st.markdown(answer)
+        if answer and not assets:
+             st.markdown(answer)
+        elif assets:
+            st.caption(answer)
 
-        # Display assets
         display_assets(assets)
-
-        # NEW: Display facets
         display_facets(facets)
 
-    # Store in session
     st.session_state.chat_history.append(
         {
             "role": "assistant",
