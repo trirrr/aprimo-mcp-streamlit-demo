@@ -1,402 +1,402 @@
 {
-    "name": "Aprimo Search: Anthropic (Sanitized)",
-    "nodes": [
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "https://{{TENANT}}.aprimo.com/login/connect/token",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Content-Type",
-                "value": "application/x-www-form-urlencoded"
-              }
-            ]
-          },
-          "sendBody": true,
-          "contentType": "form-urlencoded",
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "grant_type",
-                "value": "client_credentials"
-              },
-              {
-                "name": "scope",
-                "value": "api"
-              },
-              {
-                "name": "client_id",
-                "value": "REPLACE_WITH_APRIMO_CLIENT_ID"
-              },
-              {
-                "name": "client_secret",
-                "value": "REPLACE_WITH_APRIMO_CLIENT_SECRET"
-              }
-            ]
-          },
-          "options": {
-            "redirect": {
-              "redirect": {}
+  "name": "Aprimo Search: Anthropic",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{TENANT}}.aprimo.com/login/connect/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
             }
-          }
+          ]
         },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          288,
-          0
-        ],
-        "id": "REPLACE_WITH_GET_APRIMO_TOKEN_NODE_ID",
-        "name": "Get Aprimo Token"
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "https://{{TENANT}}.dam.aprimo.com/api/core/search/records",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "=Bearer {{$node[\"Get Aprimo Token\"].json[\"access_token\"]}}"
-              },
-              {
-                "name": "API-VERSION",
-                "value": "1"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "select-record",
-                "value": "files"
-              },
-              {
-                "name": "select-record",
-                "value": "masterfilelatestversion"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={\n  \"searchExpression\": {\n    \"expression\": \"fieldName('DisplayTitle') contains @term OR fieldName('AssetDescription') contains @term OR fieldName('enhancedcaptions') contains @term OR fieldName('Aprimo_AI_SmartTags') contains @term\",\n    \"namedParameters\": {\n      \"term\": \"{{ $node['When Executed by Another Workflow'].json['query'] }}\"\n    },\n    \"supportWildcards\": true,\n    \"disabledKeywords\": null,\n    \"defaultLogicalOperator\": \"AND\",\n    \"parameters\": [],\n    \"subExpressions\": null\n  },\n  \"facets\": [\n    {\n      \"name\": \"Created By\",\n      \"type\": \"createdBy\",\n      \"maximumFacetValues\": 10\n    },\n    {\n      \"name\": \"Content Types\",\n      \"type\": \"contentType\",\n      \"maximumFacetValues\": 10\n    },\n    {\n      \"name\": \"Regions\",\n      \"type\": \"textField\",\n      \"fieldId\": \"14f46ec6f3b543b29bc4aaa4017b4204\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    },\n    {\n      \"name\": \"Department\",\n      \"type\": \"optionListField\",\n      \"fieldId\": \"24367374d59f41f9a7d4b0a60154aff0\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    },\n    {\n      \"name\": \"Keywords\",\n      \"type\": \"textField\",\n      \"fieldId\": \"5a0e479f8adc4aefa33eaaa700fe9395\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    }\n  ],\n  \"logRequest\": true,\n  \"ignoreInvalidFacets\": true,\n  \"page\": 1,\n  \"pageSize\": {{ $node['When Executed by Another Workflow'].json['limit'] || 10 }}\n}",
-          "options": {
-            "redirect": {
-              "redirect": {}
-            }
-          }
-        },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          512,
-          0
-        ],
-        "id": "REPLACE_WITH_POST_SEARCH_NODE_ID",
-        "name": "POST Search"
-      },
-      {
-        "parameters": {
-          "workflowInputs": {
-            "values": [
-              {
-                "name": "query"
-              },
-              {
-                "name": "limit",
-                "type": "number"
-              }
-            ]
-          }
-        },
-        "type": "n8n-nodes-base.executeWorkflowTrigger",
-        "typeVersion": 1.1,
-        "position": [
-          -160,
-          0
-        ],
-        "id": "REPLACE_WITH_WHEN_EXECUTED_BY_ANOTHER_WORKFLOW_NODE_ID",
-        "name": "When Executed by Another Workflow"
-      },
-      {
-        "parameters": {
-          "jsCode": "const items = $json.items || [];\n\nreturn items.slice(0, 10).map(asset => {\n  const v = asset.masterFileLatestVersion || {};\n\n  let aiClassification = null;\n\nif (v.aiInfluenced === \"Yes\" || asset.aiInfluenced === \"Yes\") {\n  aiInfluenced = true;\n} else if (v.aiInfluenced === \"No\" || asset.aiInfluenced === \"No\") {\n  aiInfluenced = false;\n  }\n\n  return {\n    json: {\n      assetId: asset.id || null,\n      fileName: v.fileName || null,\n      size: v.fileSize || null,\n      created: v.fileCreatedOn || null,\n      state: v.fileState || null,\n      aiInfluenced: aiInfluenced\n    }\n  };\n});"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          736,
-          0
-        ],
-        "id": "REPLACE_WITH_CODE_POST_SEARCH_NODE_ID",
-        "name": "Code: Post Search"
-      },
-      {
-        "parameters": {
-          "url": "={{`https://{{TENANT}}.dam.aprimo.com/api/core/record/${$json.assetId}`}}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "=Bearer {{$items(\"Get Aprimo Token\")[0].json.access_token}}"
-              },
-              {
-                "name": "API-VERSION",
-                "value": "1"
-              },
-              {
-                "name": "accept",
-                "value": "application/json"
-              },
-              {
-                "name": "select-fileversion",
-                "value": "publiclinks"
-              },
-              {
-                "name": "select-Record",
-                "value": "files"
-              },
-              {
-                "name": "select-record",
-                "value": "masterfilelatestversion"
-              }
-            ]
-          },
-          "options": {
-            "redirect": {
-              "redirect": {}
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
             },
-            "response": {
-              "response": {
-                "neverError": true
-              }
-            }
-          }
-        },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          960,
-          0
-        ],
-        "id": "REPLACE_WITH_PULL_PUBLIC_LINKS_NODE_ID",
-        "name": "Pull Public Links"
-      },
-      {
-        "parameters": {
-          "mode": "runOnceForEachItem",
-          "jsCode": "const prev = $items(\"Code: Post Search\")[0]?.json || {};\n\nconst links = $json.masterFileLatestVersion?.publicLinks?.items || [];\n\nlet original = links.find(link => link.additionalFileId === null);\nif (!original && links.length > 0) {\n  original = links[0];\n}\n\nconst thumbnailSize = 256;\n\nconst thumbnailUrl = original?.uri\n  ? `${original.uri}?width=${thumbnailSize}&height=${thumbnailSize}&fit=crop&format=jpg&quality=80`\n  : null;\n\nreturn {\n  json: {\n    assetId: prev.assetId || $json.id || null,\n    fileName: prev.fileName || null,\n    state: prev.state || null,\n    aiInfluenced: prev.aiInfluenced || null,\n    thumbnailUrl,\n    originalSizeUri: original?.uri || null\n  }\n};"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1184,
-          0
-        ],
-        "id": "REPLACE_WITH_CODE_PULL_PUBLIC_LINKS_NODE_ID",
-        "name": "Code: Pull public links",
-        "disabled": true
-      },
-      {
-        "parameters": {
-          "url": "={{$json.thumbnailUrl || $json.originalSizeUri}}",
-          "options": {
-            "response": {
-              "response": {
-                "responseFormat": "file"
-              }
-            }
-          }
-        },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          1520,
-          -368
-        ],
-        "id": "REPLACE_WITH_GET_URL_ONLY_NODE_ID",
-        "name": "GET url only"
-      },
-      {
-        "parameters": {
-          "jsCode": "const query = $node[\"When Executed by Another Workflow\"].json[\"query\"];\n\nif (!query || !String(query).trim()) {\n  throw new Error(\"Missing required search query.\");\n}\n\nreturn items;"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          64,
-          0
-        ],
-        "id": "REPLACE_WITH_VALIDATE_QUERY_NODE_ID",
-        "name": "Validate Query"
-      },
-      {
-        "parameters": {
-          "jsCode": "const results = items.map(i => i.json);\n\n// Pull facets from POST Search node\nconst postSearch = $items(\"POST Search\", 0, 0)[0]?.json || {};\n\nreturn [\n  {\n    json: {\n      results,\n      facets: postSearch.facets || [],\n      truncatedFacets: postSearch.truncatedFacets || [],\n      totalCount: postSearch.totalCount || results.length,\n      page: postSearch.page || 1,\n      pageSize: postSearch.pageSize || results.length\n    }\n  }\n];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1632,
-          0
-        ],
-        "id": "REPLACE_WITH_FORMAT_RESULTS_NODE_ID",
-        "name": "Format Results"
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "strict",
-              "version": 3
+            {
+              "name": "scope",
+              "value": "api"
             },
-            "conditions": [
-              {
-                "id": "c47db3df-0c11-485f-ac29-96912860e9e7",
-                "leftValue": "={{ !!($json.thumbnailUrl || $json.originalSizeUri) }}",
-                "rightValue": "",
-                "operator": {
-                  "type": "boolean",
-                  "operation": "true",
-                  "singleValue": true
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {
-            "ignoreCase": false
-          }
+            {
+              "name": "client_id",
+              "value": "REPLACE_WITH_APRIMO_CLIENT_ID"
+            },
+            {
+              "name": "client_secret",
+              "value": "REPLACE_WITH_APRIMO_CLIENT_SECRET"
+            }
+          ]
         },
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.3,
-        "position": [
-          1120,
-          -288
-        ],
-        "id": "REPLACE_WITH_IF_NODE_ID",
-        "name": "If"
-      }
-    ],
-    "pinData": {},
-    "connections": {
-      "Get Aprimo Token": {
-        "main": [
-          [
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        288,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_GET_APRIMO_TOKEN",
+      "name": "Get Aprimo Token"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{TENANT}}.dam.aprimo.com/api/core/search/records",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "node": "POST Search",
-              "type": "main",
-              "index": 0
+              "name": "Authorization",
+              "value": "=Bearer {{$node[\"Get Aprimo Token\"].json[\"access_token\"]}}"
+            },
+            {
+              "name": "API-VERSION",
+              "value": "1"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "select-record",
+              "value": "files"
+            },
+            {
+              "name": "select-record",
+              "value": "masterfilelatestversion"
             }
           ]
-        ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchExpression\": {\n    \"expression\": \"fieldName('DisplayTitle') contains @term OR fieldName('AssetDescription') contains @term OR fieldName('enhancedcaptions') contains @term OR fieldName('Aprimo_AI_SmartTags') contains @term\",\n    \"namedParameters\": {\n      \"term\": \"{{ $node['When Executed by Another Workflow'].json['query'] }}\"\n    },\n    \"supportWildcards\": true,\n    \"disabledKeywords\": null,\n    \"defaultLogicalOperator\": \"AND\",\n    \"parameters\": [],\n    \"subExpressions\": null\n  },\n  \"facets\": [\n    {\n      \"name\": \"Created By\",\n      \"type\": \"createdBy\",\n      \"maximumFacetValues\": 10\n    },\n    {\n      \"name\": \"Content Types\",\n      \"type\": \"contentType\",\n      \"maximumFacetValues\": 10\n    },\n    {\n      \"name\": \"Regions\",\n      \"type\": \"textField\",\n      \"fieldId\": \"14f46ec6f3b543b29bc4aaa4017b4204\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    },\n    {\n      \"name\": \"Department\",\n      \"type\": \"optionListField\",\n      \"fieldId\": \"24367374d59f41f9a7d4b0a60154aff0\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    },\n    {\n      \"name\": \"Keywords\",\n      \"type\": \"textField\",\n      \"fieldId\": \"5a0e479f8adc4aefa33eaaa700fe9395\",\n      \"maximumFacetValues\": 10,\n      \"caseSensitive\": false\n    }\n  ],\n  \"logRequest\": true,\n  \"ignoreInvalidFacets\": true,\n  \"page\": 1,\n  \"pageSize\": {{ $node['When Executed by Another Workflow'].json['limit'] || 10 }}\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
       },
-      "POST Search": {
-        "main": [
-          [
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        512,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_POST_SEARCH",
+      "name": "POST Search"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
             {
-              "node": "Code: Post Search",
-              "type": "main",
-              "index": 0
+              "name": "query"
+            },
+            {
+              "name": "limit",
+              "type": "number"
             }
           ]
-        ]
+        }
       },
-      "When Executed by Another Workflow": {
-        "main": [
-          [
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_WHEN_EXECUTED_BY_ANOTHER_WORKFLOW",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $json.items || [];\n\nreturn items.slice(0, 10).map(asset => {\n  const v = asset.masterFileLatestVersion || {};\n\n  let aiClassification = null;\n\nif (v.aiInfluenced === \"Yes\" || asset.aiInfluenced === \"Yes\") {\n  aiInfluenced = true;\n} else if (v.aiInfluenced === \"No\" || asset.aiInfluenced === \"No\") {\n  aiInfluenced = false;\n  }\n\n  return {\n    json: {\n      assetId: asset.id || null,\n      fileName: v.fileName || null,\n      size: v.fileSize || null,\n      created: v.fileCreatedOn || null,\n      state: v.fileState || null,\n      aiInfluenced: aiInfluenced\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_CODE_POST_SEARCH",
+      "name": "Code: Post Search"
+    },
+    {
+      "parameters": {
+        "url": "={{`https://{{TENANT}}.dam.aprimo.com/api/core/record/${$json.assetId}`}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "node": "Validate Query",
-              "type": "main",
-              "index": 0
+              "name": "Authorization",
+              "value": "=Bearer {{$items(\"Get Aprimo Token\")[0].json.access_token}}"
+            },
+            {
+              "name": "API-VERSION",
+              "value": "1"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "select-fileversion",
+              "value": "publiclinks"
+            },
+            {
+              "name": "select-Record",
+              "value": "files"
+            },
+            {
+              "name": "select-record",
+              "value": "masterfilelatestversion"
             }
           ]
-        ]
-      },
-      "Code: Post Search": {
-        "main": [
-          [
-            {
-              "node": "Pull Public Links",
-              "type": "main",
-              "index": 0
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "neverError": true
             }
-          ]
-        ]
+          }
+        }
       },
-      "Pull Public Links": {
-        "main": [
-          [
-            {
-              "node": "If",
-              "type": "main",
-              "index": 0
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        960,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_PULL_PUBLIC_LINKS",
+      "name": "Pull Public Links"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const prev = $items(\"Code: Post Search\")[0]?.json || {};\n\nconst links = $json.masterFileLatestVersion?.publicLinks?.items || [];\n\nlet original = links.find(link => link.additionalFileId === null);\nif (!original && links.length > 0) {\n  original = links[0];\n}\n\nconst thumbnailSize = 256;\n\nconst thumbnailUrl = original?.uri\n  ? `${original.uri}?width=${thumbnailSize}&height=${thumbnailSize}&fit=crop&format=jpg&quality=80`\n  : null;\n\nreturn {\n  json: {\n    assetId: prev.assetId || $json.id || null,\n    fileName: prev.fileName || null,\n    state: prev.state || null,\n    aiInfluenced: prev.aiInfluenced || null,\n    thumbnailUrl,\n    originalSizeUri: original?.uri || null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_CODE_PULL_PUBLIC_LINKS",
+      "name": "Code: Pull public links",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "={{$json.thumbnailUrl || $json.originalSizeUri}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
             }
-          ]
-        ]
+          }
+        }
       },
-      "Code: Pull public links": {
-        "main": [
-          []
-        ]
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1520,
+        -368
+      ],
+      "id": "REPLACE_WITH_NODE_ID_GET_URL_ONLY",
+      "name": "GET url only"
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $node[\"When Executed by Another Workflow\"].json[\"query\"];\n\nif (!query || !String(query).trim()) {\n  throw new Error(\"Missing required search query.\");\n}\n\nreturn items;"
       },
-      "GET url only": {
-        "main": [
-          [
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_VALIDATE_QUERY",
+      "name": "Validate Query"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = items.map(i => i.json);\n\n// Pull facets from POST Search node\nconst postSearch = $items(\"POST Search\", 0, 0)[0]?.json || {};\n\nreturn [\n  {\n    json: {\n      results,\n      facets: postSearch.facets || [],\n      truncatedFacets: postSearch.truncatedFacets || [],\n      totalCount: postSearch.totalCount || results.length,\n      page: postSearch.page || 1,\n      pageSize: postSearch.pageSize || results.length\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        0
+      ],
+      "id": "REPLACE_WITH_NODE_ID_FORMAT_RESULTS",
+      "name": "Format Results"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
             {
-              "node": "Format Results",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Validate Query": {
-        "main": [
-          [
-            {
-              "node": "Get Aprimo Token",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "If": {
-        "main": [
-          [
-            {
-              "node": "GET url only",
-              "type": "main",
-              "index": 0
+              "id": "c47db3df-0c11-485f-ac29-96912860e9e7",
+              "leftValue": "={{ !!($json.thumbnailUrl || $json.originalSizeUri) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
-          [
-            {
-              "node": "Format Results",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        -288
+      ],
+      "id": "REPLACE_WITH_NODE_ID_IF",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Aprimo Token": {
+      "main": [
+        [
+          {
+            "node": "POST Search",
+            "type": "main",
+            "index": 0
+          }
         ]
-      }
+      ]
     },
-    "active": true,
-    "settings": {
-      "executionOrder": "v1",
-      "binaryMode": "separate",
-      "availableInMCP": false
+    "POST Search": {
+      "main": [
+        [
+          {
+            "node": "Code: Post Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "versionId": "REPLACE_WITH_CHILD_WORKFLOW_VERSION_ID",
-    "meta": {
-      "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID"
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "id": "REPLACE_WITH_CHILD_WORKFLOW_ID",
-    "tags": []
-  }
+    "Code: Post Search": {
+      "main": [
+        [
+          {
+            "node": "Pull Public Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Public Links": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Pull public links": {
+      "main": [
+        []
+      ]
+    },
+    "GET url only": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Query": {
+      "main": [
+        [
+          {
+            "node": "Get Aprimo Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "GET url only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "REPLACE_WITH_VERSION_ID",
+  "meta": {
+    "instanceId": "REPLACE_WITH_INSTANCE_ID"
+  },
+  "id": "REPLACE_WITH_WORKFLOW_ID",
+  "tags": []
+}
